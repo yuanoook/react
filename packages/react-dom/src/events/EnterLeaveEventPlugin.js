@@ -42,11 +42,11 @@ const eventTypes = {
   },
 };
 
-// We track the lastNativeEvent to ensure that when we encounter
-// cases where we process the same nativeEvent multiple times,
+// We track the lastNativeOutEvent to ensure that when we encounter
+// cases where we process the same nativeOutEvent multiple times,
 // which can happen when have multiple ancestors, that we don't
 // duplicate enter
-let lastNativeEvent;
+let lastNativeOutEvent;
 
 const EnterLeaveEventPlugin = {
   eventTypes: eventTypes,
@@ -101,24 +101,29 @@ const EnterLeaveEventPlugin = {
       }
     }
 
-    let from;
-    let to;
-    if (isOutEvent) {
+    let from = null;
+    let to = null;
+    check: if (isOutEvent) {
       from = targetInst;
       const related = nativeEvent.relatedTarget || nativeEvent.toElement;
-      to = related ? getClosestInstanceFromNode(related) : null;
-      if (to !== null) {
-        const nearestMounted = getNearestMountedFiber(to);
-        if (
-          to !== nearestMounted ||
-          (to.tag !== HostComponent && to.tag !== HostText)
-        ) {
-          to = null;
-        }
+      if (!related || lastNativeOutEvent === nativeEvent) {
+        break check;
+      } else {
+        lastNativeOutEvent = nativeEvent;
+      }
+
+      to = getClosestInstanceFromNode(related);
+      if (to == null || to.tag !== HostComponent && to.tag !== HostText) {
+        to = null;
+        break check;
+      }
+
+      const nearestMounted = getNearestMountedFiber(to);
+      if (to !== nearestMounted) {
+        to = null;
       }
     } else {
       // Moving to a node from outside the window.
-      from = null;
       to = targetInst;
     }
 
@@ -129,7 +134,10 @@ const EnterLeaveEventPlugin = {
 
     let eventInterface, leaveEventType, enterEventType, eventTypePrefix;
 
-    if (topLevelType === TOP_MOUSE_OUT || topLevelType === TOP_MOUSE_OVER) {
+    if (
+      topLevelType === TOP_MOUSE_OUT ||
+      topLevelType === TOP_MOUSE_OVER
+    ) {
       eventInterface = SyntheticMouseEvent;
       leaveEventType = eventTypes.mouseLeave;
       enterEventType = eventTypes.mouseEnter;
@@ -147,34 +155,33 @@ const EnterLeaveEventPlugin = {
     const fromNode = from == null ? win : getNodeFromInstance(from);
     const toNode = to == null ? win : getNodeFromInstance(to);
 
-    const leave = eventInterface.getPooled(
-      leaveEventType,
-      from,
-      nativeEvent,
-      nativeEventTarget,
-    );
-    leave.type = eventTypePrefix + 'leave';
-    leave.target = fromNode;
-    leave.relatedTarget = toNode;
+    let leave, enter;
 
-    const enter = eventInterface.getPooled(
-      enterEventType,
-      to,
-      nativeEvent,
-      nativeEventTarget,
-    );
-    enter.type = eventTypePrefix + 'enter';
-    enter.target = toNode;
-    enter.relatedTarget = fromNode;
+    if (from) {
+      leave = eventInterface.getPooled(
+        leaveEventType,
+        from,
+        nativeEvent,
+        nativeEventTarget,
+      );
+      leave.type = eventTypePrefix + 'leave';
+      leave.target = fromNode;
+      leave.relatedTarget = toNode;
+    }
+
+    if (to) {
+      enter = eventInterface.getPooled(
+        enterEventType,
+        to,
+        nativeEvent,
+        nativeEventTarget,
+      );
+      enter.type = eventTypePrefix + 'enter';
+      enter.target = toNode;
+      enter.relatedTarget = fromNode;
+    }
 
     accumulateEnterLeaveDispatches(leave, enter, from, to);
-
-    if (nativeEvent === lastNativeEvent) {
-      lastNativeEvent = null;
-      return [leave];
-    }
-    lastNativeEvent = nativeEvent;
-
     return [leave, enter];
   },
 };
