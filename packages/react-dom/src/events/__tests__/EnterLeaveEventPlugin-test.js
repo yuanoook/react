@@ -136,8 +136,7 @@ describe('EnterLeaveEventPlugin', () => {
   });
 
   // Test for https://github.com/facebook/react/issues/16763.
-  it('should call mouseEnter once from sibling rendered inside a rendered component', done => {
-    const mockFn = jest.fn();
+  it('should call mouseEnter once with multiple ancestors', done => {
 
     class Parent extends React.Component {
       constructor(props) {
@@ -146,7 +145,9 @@ describe('EnterLeaveEventPlugin', () => {
       }
 
       componentDidMount() {
-        ReactDOM.render(<MouseEnterDetect />, this.parentEl.current);
+        ReactDOM.render(<MouseEnterDetect />, this.parentEl.current, () => {
+          ReactDOM.render(<MouseEnterDetect />, this.parentEl.current.childNodes[1])
+        });
       }
 
       render() {
@@ -157,6 +158,7 @@ describe('EnterLeaveEventPlugin', () => {
     class MouseEnterDetect extends React.Component {
       constructor(props) {
         super(props);
+        this.mockFn = jest.fn();
         this.firstEl = React.createRef();
         this.siblingEl = React.createRef();
       }
@@ -169,14 +171,14 @@ describe('EnterLeaveEventPlugin', () => {
             relatedTarget: this.firstEl.current,
           }),
         );
-        expect(mockFn.mock.calls.length).toBe(1);
+        expect(this.mockFn.mock.calls.length).toBe(1);
         done();
       }
 
       render() {
         return (
           <React.Fragment>
-            <div ref={this.firstEl} onMouseEnter={mockFn} />
+            <div ref={this.firstEl} onMouseEnter={this.mockFn} />
             <div ref={this.siblingEl} />
           </React.Fragment>
         );
