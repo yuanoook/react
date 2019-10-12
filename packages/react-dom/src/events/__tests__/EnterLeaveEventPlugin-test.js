@@ -146,7 +146,7 @@ describe('EnterLeaveEventPlugin', () => {
 
       componentDidMount() {
         ReactDOM.render(<MouseEnterDetect />, this.parentEl.current, () => {
-          ReactDOM.render(<MouseEnterDetect />, this.parentEl.current.childNodes[1])
+          ReactDOM.render(<MouseEnterDetect />, this.parentEl.current.childNodes[1], done);
         });
       }
 
@@ -172,7 +172,6 @@ describe('EnterLeaveEventPlugin', () => {
           }),
         );
         expect(this.mockFn.mock.calls.length).toBe(1);
-        done();
       }
 
       render() {

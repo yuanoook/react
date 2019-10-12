@@ -42,11 +42,11 @@ const eventTypes = {
   },
 };
 
-// We track the lastNativeOutEvent to ensure that when we encounter
-// cases where we process the same nativeOutEvent multiple times,
+// We mark OUT_ENTERED_FLAG to ensure that when we encounter
+// cases where we process the same nativeEvent multiple times,
 // which can happen when have multiple ancestors, that we don't
 // duplicate enter
-let lastNativeOutEvent;
+const OUT_ENTERED_FLAG = typeof Symbol === 'function' ? Symbol() : 0xef1a9;
 
 const EnterLeaveEventPlugin = {
   eventTypes: eventTypes,
@@ -101,31 +101,23 @@ const EnterLeaveEventPlugin = {
       }
     }
 
-    let from = null;
-    let to = null;
-    check: if (isOutEvent) {
-      from = targetInst;
+    let from = isOutEvent ? targetInst : null;
+    let to = !isOutEvent ? targetInst : (() => {
       const related = nativeEvent.relatedTarget || nativeEvent.toElement;
-      if (!related || lastNativeOutEvent === nativeEvent) {
-        break check;
-      } else {
-        lastNativeOutEvent = nativeEvent;
+      if (!related || nativeEvent[OUT_ENTERED_FLAG]) {
+        return null;
       }
 
-      to = getClosestInstanceFromNode(related);
-      if (to == null || to.tag !== HostComponent && to.tag !== HostText) {
-        to = null;
-        break check;
+      nativeEvent[OUT_ENTERED_FLAG] = true;
+
+      const toInst = getClosestInstanceFromNode(related);
+      if (toInst == null || toInst.tag !== HostComponent && toInst.tag !== HostText) {
+        return null;
       }
 
-      const nearestMounted = getNearestMountedFiber(to);
-      if (to !== nearestMounted) {
-        to = null;
-      }
-    } else {
-      // Moving to a node from outside the window.
-      to = targetInst;
-    }
+      const nearestMounted = getNearestMountedFiber(toInst);
+      return toInst === nearestMounted ? toInst : null;
+    })();
 
     if (from === to) {
       // Nothing pertains to our managed components.
